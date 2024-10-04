@@ -1,0 +1,21 @@
+---
+title: "p8105_hw3_fw2394"
+author: "Fang Wang"
+date: "2024-10-04"
+output: github_document
+---
+# Problem 1
+
+## Load necessary libraries:
+```{r libraries}
+library (tidyverse)
+library(p8105.datasets)
+```
+
+## Load data
+```{r data}
+data("ny_noaa")
+```
+
+
+
