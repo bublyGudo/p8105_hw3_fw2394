@@ -1,0 +1,167 @@
+---
+title: "p8105_hw3_fw2394"
+author: "Fang Wang"
+date: "2024-10-12"
+output: github_document
+editor_options: 
+  chunk_output_type: inline
+---
+# Load necessary libraries
+```{r libraries}
+library (tidyverse)
+library (dplyr)
+library (patchwork)
+
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp =.6,
+  out.width = "90%"
+)
+
+theme_set (theme_bw() + theme (
+    legend.position =  "bottom"
+  ))
+
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_color_discrete = scale_color_viridis_d()
+scale_fill_discrete = scale_fill_viridis_d()
+```
+
+# Problem 1
+
+## Load data:
+```{r noaa}
+library(p8105.datasets)
+data("ny_noaa")
+```
+*The ny_noaa dataset contains 30 years of weather forecast data for New York State, collected from various NOAA weather stations. The dataset is structured with each row representing a single observation at a specific station and date, and columns corresponding to the various recorded variables. It has 2595176 observations and 7 variables. The variables includes "id" (weather station ID), "date" (date of observation), "prcp" (precipitation), "snow" (snowfall), "snwd" (snow depth), "tmax" (maximum temperature) and "tmin" (minimum temperature).*
+
+## Check missing data for each variable:
+```{r missing_data}
+ny_noaa |> 
+    summarise(pro_prcp = mean(is.na(prcp)))
+
+ny_noaa |> 
+    summarise(pro_snow = mean(is.na(snow)))
+
+ny_noaa |> 
+    summarise(pro_snwd = mean(is.na(snwd)))
+
+ny_noaa |> 
+    summarise(pro_tmax = mean(is.na(tmax)))
+
+ny_noaa |> 
+    summarise(pro_tmin = mean(is.na(tmin)))
+```
+*In prcp (precipitation) variable, approximately 6% of values are missing. In snow (snowfall), around 15% of values are missing. In snwd (snow depth) variable, about 23% of values are missing. In tmax (maximum temperature), approximately 44% of values are missing. In tmin (minimum temperature), about 44% of values are missing. These figures indicate that while some variables (e.g., precipitation) have relatively low levels of missing data, others (e.g., maximum temperature and minimum temperature) have substantial gaps. This missing data may affect analyses, particularly those involving temperature.*
+
+## Create separate variables for year, month, and day:
+```{r date}
+ny_noaa = ny_noaa |> 
+separate(date, into = c("year", "month", "day"), sep = "-")
+```
+
+## Convert the units of precipitation (tenths of mm), maximum temperature (tenths of degrees C) and minimum temperature (tenths of degrees C) into precipitation in mm, maximum temperature and minimum temperatuere in degrees C.
+```{r unit}
+ny_noaa = ny_noaa |>
+  mutate (
+    prcp = ifelse(!is.na(prcp), as.numeric(prcp)/10, NA),
+    tmax = ifelse(!is.na(tmax), as.numeric(tmax)/10, NA),
+    tmin = ifelse(!is.na(tmin), as.numeric(tmin)/10, NA)  
+    )
+```
+
+## Check the most commonly observed values for snowfall:
+```{r snow}
+ny_noaa |> 
+  ggplot (aes(x=snow)) + 
+  geom_histogram()
+
+ggsave("/Users/fangwang/Downloads/P8105 Data Science I/p8105_hw3_fw2394/snowfall_common.png")
+```
+*Based on the histogram, a value of 0 is the most commonly observed for snowfall. This is expected in climates where snowfall primarily occurs during winter. Even during winter, many regions and days experience no snowfall, leading to a high accumulation of days with zero snowfall. Consequently, 0 is the most frequently recorded value in the dataset.*
+
+## Make a two-panel plot showing the average max temperature in January and in July in each station across years:
+```{r}
+ave_tmax_station = ny_noaa |> 
+  filter (month %in% c("01", "07")) |> 
+  group_by(year, id, month) |> 
+  summarise(avg_tmax = mean(tmax, na.rm = TRUE))
+
+
+month = c("01" = "January", "07" = "July")
+labeller_month = as_labeller(month)
+
+ave_tmax_station |> 
+  ggplot(aes(x = year, y= avg_tmax, color = month)) +
+  geom_boxplot() +
+  facet_wrap(~ month, labeller = labeller_month) +
+  labs (
+    title = "Average Max Temperature in January and July in Each Station Across Years",
+    x = "Years",
+    y = "Average Max Temperature (°C) in Each Station",
+    color = "Month"
+  ) +
+  scale_color_discrete(labels = c("January", "July")) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 6)) + theme(axis.title.y = element_text(size = 7)) +
+  theme(plot.title=element_text(size=11, face="bold"))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggsave("/Users/fangwang/Downloads/P8105 Data Science I/p8105_hw3_fw2394/tmax_station.png")
+```
+*The plot shows a clear seasonal pattern in temperature, with expected lower temperatures in January (left panel) and higher temperatures in July (right panel). The average max temperature in January shows lower values, mostly ranging between -10 and 10 degrees Celsius, as expected for winter. The average max temperature in July is consistently higher, mostly ranging between 20 and 30 degrees Celsius. There are some outliers in the January panel, with temperatures dropping significantly below -10°C. These might be due to extremely cold conditions at specific stations or during particular years.The July panel also has some outliers, with some temperatures falling below or above the main range.*
+
+
+## Make a two-panel plot showing tmax vs tmin for the full dataset: 
+```{r}
+observations = c("tmax" = "Maximum Temperature", "tmin" = "Minimum Temperature")
+labeller_observations = as_labeller(observations)
+
+ny_noaa |> 
+  pivot_longer(
+    cols = tmax:tmin,
+    names_to = "observations",
+    values_to = "temperature"
+  ) |> 
+  ggplot (aes(x = year, y = temperature, fill = observations)) +
+  geom_violin(alpha = 0.7) +
+  stat_summary(fun = "median", geom = "point", size = 0.1) +
+  facet_wrap(.~ observations, labeller = labeller_observations) +
+  labs (
+    title = "Maximum and Minimum Temperature Across Years",
+    x = "Years",
+    y = "Temperature (°C)",
+    fill = "Observations"
+  ) +
+  scale_fill_discrete(labels = c("Maximum Temperature", "Minimum Temperature")) +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 6)) +
+  theme(plot.title=element_text(size=14, face="bold"))+
+  theme(plot.title = element_text(hjust = 0.5))
+  
+ggsave("/Users/fangwang/Downloads/P8105 Data Science I/p8105_hw3_fw2394/tmax_tmin.png")
+```
+*The plot is a violin plot that shows the distribution of maximum and minimum temperatures across the years 1981 to 2010. The x-axis represents the years, and the y-axis represents the temperature in degrees Celsius. The violin plots are colored red for maximum temperature and blue for minimum temperature.The median maximum temperature is generally higher than the median minimum temperature, as we expected.*
+
+## make a plot showing the distribution of snowfall values greater than 0 and less than 100 separately by year:
+```{r snowfall}
+ny_noaa |> 
+  filter (snow > 0, snow < 100) |> 
+  ggplot(aes(x = snow)) +
+  geom_histogram(fill = "orange", color = "black") +
+  facet_wrap(. ~ year) +
+  labs (
+    title = "Snowfall Distribution by Year",
+    x = "Snowfall (mm)",
+    y = "Frequency"
+  ) +
+  theme(axis.text.x = element_text(hjust = 1, size = 6)) +
+  theme(axis.text.y = element_text(size = 6)) +
+  theme(plot.title=element_text(size=18, face="bold"))+
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggsave ("/Users/fangwang/Downloads/P8105 Data Science I/p8105_hw3_fw2394/distribution of snowfall by years.png")
+```
+*This plot shows the distribution of snowfall values (between 0 and approximately 100) across different years from 1981 to 2010. Each small histogram represents a separate year. The x-axis shows snowfall values and the y-axis displays the count of observations (frequency) in each snowfall range. The histograms reveal that snowfall tends to cluster at lower values, with most observations concentrated below 50mm, and the frequency of higher than 75mm is relatively low across all years. The distribution of snowfall appears to be fairly consistent year-to-year.*
